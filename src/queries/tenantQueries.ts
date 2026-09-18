@@ -1,28 +1,38 @@
 import { queryOptions } from "@tanstack/react-query";
+
 import {
-  getTenantById,
   getTenants,
+  createTenant,
+  type Tenant,
 } from "../api/tenants.api";
-import { tenantKeys } from "./queryKeys";
+
+export const tenantKeys = {
+  all: ["tenants"] as const,
+
+  lists: () => [...tenantKeys.all, "list"] as const,
+
+  list: () => [...tenantKeys.lists()] as const,
+};
 
 export const tenantQueries = {
-  list: (filters: {
-    search?: string;
-    plan?: string;
-    status?: string;
-    page?: number;
-  }) =>
+  list: () =>
     queryOptions({
-      queryKey: tenantKeys.list(filters),
-      queryFn: ({ signal }) =>
-        getTenants(filters, signal),
-    }),
+      queryKey: tenantKeys.list(),
 
-  detail: (id: number) =>
-    queryOptions({
-      queryKey: tenantKeys.detail(id),
-      queryFn: ({ signal }) =>
-        getTenantById(id, signal),
-      enabled: !!id,
+      queryFn: ({ signal }) => getTenants(signal),
     }),
 };
+
+export interface CreateTenantInput {
+  name: string;
+  email: string;
+  phone: string;
+  city: string;
+  status: Tenant["status"];
+}
+
+export async function addTenant(
+  tenant: CreateTenantInput
+): Promise<Tenant> {
+  return createTenant(tenant);
+}

@@ -1,62 +1,112 @@
-import { apiGet } from "./api";
-import type {
-  Tenant,
-  TenantsResponse,
-  TenantUsersResponse,
-} from "../types/tenant.types";
+const TENANTS_STORAGE_KEY = "super-admin-tenants";
 
-interface TenantListParams {
-  search?: string;
-  plan?: string;
-  status?: string;
-  page?: number;
-  limit?: number;
+export interface Tenant {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  city: string;
+  status: "Active" | "Inactive";
+}
+
+interface TenantsResponse {
+  tenants: Tenant[];
+  total: number;
+}
+
+function readTenants(): Tenant[] {
+  const storedTenants = localStorage.getItem(
+    TENANTS_STORAGE_KEY
+  );
+
+  if (!storedTenants) {
+    return [];
+  }
+
+  try {
+    return JSON.parse(storedTenants) as Tenant[];
+  } catch {
+    return [];
+  }
+}
+
+function saveTenants(tenants: Tenant[]): void {
+  localStorage.setItem(
+    TENANTS_STORAGE_KEY,
+    JSON.stringify(tenants)
+  );
 }
 
 export async function getTenants(
-  params: TenantListParams,
-  signal?: AbortSignal
+  _signal?: AbortSignal
 ): Promise<TenantsResponse> {
-  const page = params.page ?? 1;
-  const limit = params.limit ?? 10;
-
-  const skip = (page - 1) * limit;
-
-  const response = await apiGet<{
-    users: Tenant[];
-    total: number;
-  }>(`/users?limit=${limit}&skip=${skip}`, signal);
+  const tenants = readTenants();
 
   return {
-    tenants: response.users,
-    total: response.total,
-    page,
-    limit,
-    totalPages: Math.ceil(response.total / limit),
+    tenants,
+    total: tenants.length,
   };
 }
 
-export async function getTenantById(
-  id: number,
-  signal?: AbortSignal
+export async function createTenant(
+  tenant: Omit<Tenant, "id">
 ): Promise<Tenant> {
-  return apiGet<Tenant>(`/users/${id}`, signal);
+  const tenants = readTenants();
+
+  const newTenant: Tenant = {
+    id: Date.now(),
+    ...tenant,
+  };
+
+  const updatedTenants = [
+    ...tenants,
+    newTenant,
+  ];
+
+  saveTenants(updatedTenants);
+
+  return newTenant;
 }
 
-export async function getTenantUsers(
-  _tenantId: number,
-  signal?: AbortSignal
-): Promise<TenantUsersResponse> {
-  const response = await apiGet<{
-    users: TenantUsersResponse["users"];
-    total: number;
-  }>("/users?limit=10&skip=0", signal);
+export async function updateTenant(
+  id: number,
+  tenant: Omit<Tenant, "id">
+): Promise<Tenant> {
+  const tenants = readTenants();
 
-  return {
-    users: response.users,
-    total: response.total,
-    page: 1,
-    limit: 10,
-    totalPages: Math.ceil(response.total / 10),
+  const existingTenant = tenants.find(
+    (currentTenant) => currentTenant.id === id
+  );
+
+  if (!existingTenant) {
+    throw new Error("Tenant not found.");
+  }
+
+  const updatedTenant: Tenant = {
+    id,
+    ...tenant,
   };
+
+  const updatedTenants = tenants.map(
+    (currentTenant) =>
+      currentTenant.id === id
+        ? updatedTenant
+        : currentTenant
+  );
+
+  saveTenants(updatedTenants);
+
+  return updatedTenant;
+}
+
+export async function deleteTenant(
+  id: number
+): Promise<void> {
+  const tenants = readTenants();
+
+  const updatedTenants = tenants.filter(
+    (tenant) => tenant.id !== id
+  );
+
+  saveTenants(updatedTenants);
 }
